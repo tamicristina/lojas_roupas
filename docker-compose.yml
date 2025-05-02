@@ -1,21 +1,25 @@
-# version: "3.9"
+version: "3.9"
 
 services:
   mysql:
     image: mysql:8.0
-    command: --bind-address=0.0.0.0
+    command:
+      - --bind-address=0.0.0.0
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     container_name: mysql_loja
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: loja_roupas
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
     ports:
       - "3306:3306"
     volumes:
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - loja-network
-
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
@@ -46,18 +50,24 @@ services:
     tty: true
     stdin_open: true
     depends_on:
-      - mysql
-      - mongo
+      mysql:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_HOST: mysql
+      MONGODB_URI: mongodb://mongo:27017/
     networks:
       - loja-network
     volumes:
-      - .:/app # Mapeamento essencial
-    command: tail -f /dev/null # Mantém o container ativo
+      - .:/app
+    command: tail -f /dev/null
     healthcheck:
-      test: ["CMD", "echo", "ETL ready"]
-      interval: 5s
+      test: ["CMD", "python", "-c", "import mysql.connector; import pymongo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   loja-network:

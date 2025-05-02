@@ -6,26 +6,33 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 load_dotenv()
+print("Diretório atual:", os.getcwd())
+print("Arquivos na pasta:", os.listdir('etl'))
+
 
 def carregar_clientes_mysql(cursor):
-    """Carrega dados de clientes do CSV para MySQL"""
     try:
-        df = pd.read_csv("etl/clientes.csv")
-        print("📋 Dados de clientes encontrados:")
-        print(df.head())
+        caminho_csv = os.path.join('etl', 'clientes.csv')
+        print(f"Tentando ler arquivo em: {caminho_csv}")
+        
+        df = pd.read_csv(caminho_csv)
+        print(f"Dados encontrados ({len(df)} linhas):\n", df.head())
         
         for _, row in df.iterrows():
-            cursor.execute("""
-                INSERT INTO Clientes (nome, email, telefone)
-                VALUES (%s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    nome = VALUES(nome),
-                    telefone = VALUES(telefone)
-            """, (row['nome'], row['email'], row['telefone']))
-        print(f"✅ {len(df)} clientes carregados/atualizados")
+            try:
+                cursor.execute(
+                    "INSERT INTO Clientes (nome, email, telefone) VALUES (%s, %s, %s)",
+                    (row['nome'], row['email'], row['telefone'])
+                )
+            except Exception as insert_error:
+                print(f"Erro ao inserir linha {_}: {insert_error}")
+                continue
+                
+        print(f"✅ {len(df)} clientes carregados com sucesso!")
         return True
+        
     except Exception as e:
-        print(f"❌ Erro ao carregar clientes: {e}")
+        print(f"❌ Erro grave no ETL: {str(e)}")
         return False
 
 def carregar_produtos_vendidos_mongo():
@@ -171,5 +178,11 @@ def main():
             mysql_conn.close()
         print("Conexões com bancos de dados fechadas")
 
+    if mysql_conn:
+        mysql_conn.commit()  # Confirma as transações
+        print("✅ Transações MySQL confirmadas!")
+        
 if __name__ == "__main__":
     main()
+    
+    
