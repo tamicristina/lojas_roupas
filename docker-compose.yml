@@ -1,0 +1,64 @@
+# version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    command: --bind-address=0.0.0.0
+    container_name: mysql_loja
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: loja_roupas
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - loja-network
+
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      interval: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:6
+    container_name: mongo_loja
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongo/seed.js:/docker-entrypoint-initdb.d/seed.js
+    networks:
+      - loja-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      timeout: 20s
+      interval: 5s
+      retries: 10
+
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: etl_loja
+    tty: true
+    stdin_open: true
+    depends_on:
+      - mysql
+      - mongo
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    networks:
+      - loja-network
+    volumes:
+      - .:/app # Mapeamento essencial
+    command: tail -f /dev/null # Mantém o container ativo
+    healthcheck:
+      test: ["CMD", "echo", "ETL ready"]
+      interval: 5s
+
+networks:
+  loja-network:
+    driver: bridge
