@@ -15,7 +15,7 @@ def carregar_clientes_mysql(cursor):
         caminho_csv = os.path.join('etl', 'clientes.csv')
         print(f"Tentando ler arquivo em: {caminho_csv}")
         
-        df = pd.read_csv(caminho_csv)
+        df = pd.read_csv(caminho_csv, encoding='utf-8-sig')
         print(f"Dados encontrados ({len(df)} linhas):\n", df.head())
         
         for _, row in df.iterrows():
@@ -35,6 +35,55 @@ def carregar_clientes_mysql(cursor):
         print(f"❌ Erro grave no ETL: {str(e)}")
         return False
 
+def carregar_produtos_mysql(cursor):
+    try:
+        df = pd.read_csv("etl/csv_produtos_mais_vendidos.csv", encoding='utf-8-sig')
+        print("\n📋 Dados de produtos encontrados:")
+        print(df.head())
+        
+        # Primeiro insere os produtos
+        produtos_unicos = df['produto'].unique()
+        for produto in produtos_unicos:
+            cursor.execute(
+                "INSERT IGNORE INTO Produtos (nome) VALUES (%s)",
+                (produto,)
+            )
+        
+        # Agora insere as vendas
+        for _, row in df.iterrows():
+            cursor.execute(
+                """INSERT INTO Vendas (produto_id, quantidade, data_venda)
+                   SELECT id, %s, CURDATE() FROM Produtos WHERE nome = %s""",
+                (row['quantidade_vendida'], row['produto'])
+            )
+        
+        print(f"✅ {len(df)} registros de vendas carregados!")
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao carregar produtos/vendas: {e}")
+        return False
+
+def carregar_satisfacao_mysql(cursor):
+    try:
+        df = pd.read_csv("etl/csv_satisfacao_clientes.csv", encoding='utf-8-sig')
+        print("\n📋 Dados de satisfação encontrados:")
+        print(df.head())
+        
+        for _, row in df.iterrows():
+            cursor.execute(
+                """INSERT INTO Satisfacao (produto_id, nota, data_avaliacao)
+                   SELECT id, %s, %s FROM Produtos WHERE nome = %s""",
+                (row['nota_satisfacao'], row['data'], row['produto'])
+            )
+        
+        print(f"✅ {len(df)} avaliações carregadas!")
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao carregar satisfação: {e}")
+        return False    
+
+
+# ===== Mongo DB ==== 
 def carregar_produtos_vendidos_mongo():
     """Carrega relatório de produtos mais vendidos para MongoDB"""
     try:
@@ -134,7 +183,6 @@ def main():
     print(" INICIANDO PROCESSO ETL ".center(50, "="))
     print("="*50 + "\n")
     
-    # Testar conexões primeiro
     if not testar_conexao_mongo():
         return
 
@@ -142,7 +190,6 @@ def main():
     cursor = None
     
     try:
-        # Conexão com MySQL
         mysql_conn = mysql.connector.connect(
             host="mysql",
             user="root",
@@ -155,9 +202,11 @@ def main():
         # Processar dados
         resultados = {
             "clientes": carregar_clientes_mysql(cursor),
-            "produtos": carregar_produtos_vendidos_mongo(),
-            "receita": carregar_receita_mensal_mongo(),
-            "satisfacao": carregar_satisfacao_clientes_mongo()
+            "produtos": carregar_produtos_mysql(cursor),
+            "satisfacao": carregar_satisfacao_mysql(cursor),
+            "produtos_mongo": carregar_produtos_vendidos_mongo(),
+            "receita_mongo": carregar_receita_mensal_mongo(),
+            "satisfacao_mongo": carregar_satisfacao_clientes_mongo()
         }
 
         if mysql_conn:
@@ -171,16 +220,14 @@ def main():
 
     except Exception as e:
         print(f"\n🔴 ERRO GRAVE: {e}")
+        if mysql_conn:
+            mysql_conn.rollback()
     finally:
         if cursor:
             cursor.close()
         if mysql_conn:
             mysql_conn.close()
         print("Conexões com bancos de dados fechadas")
-
-    if mysql_conn:
-        mysql_conn.commit()  # Confirma as transações
-        print("✅ Transações MySQL confirmadas!")
         
 if __name__ == "__main__":
     main()
