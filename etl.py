@@ -41,7 +41,6 @@ def carregar_produtos_mysql(cursor):
         print("\n📋 Dados de produtos encontrados:")
         print(df.head())
         
-        # Primeiro insere os produtos
         produtos_unicos = df['produto'].unique()
         for produto in produtos_unicos:
             cursor.execute(
@@ -49,7 +48,6 @@ def carregar_produtos_mysql(cursor):
                 (produto,)
             )
         
-        # Agora insere as vendas
         for _, row in df.iterrows():
             cursor.execute(
                 """INSERT INTO Vendas (produto_id, quantidade, data_venda)
@@ -91,7 +89,6 @@ def carregar_produtos_vendidos_mongo():
         print("\n📋 Dados de produtos mais vendidos:")
         print(df.head())
         
-        # Converter para formato de documentos MongoDB
         docs = []
         for _, row in df.iterrows():
             doc = {
@@ -99,7 +96,7 @@ def carregar_produtos_vendidos_mongo():
                 "data_geracao": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "produto": row['produto'],
                 "quantidade_vendida": int(row['quantidade_vendida']),
-                "categoria": "Geral"  # Valor padrão
+                "categoria": "Geral"  
             }
             docs.append(doc)
         
@@ -141,7 +138,6 @@ def carregar_satisfacao_clientes_mongo():
         print("\n📋 Dados de satisfação encontrados:")
         print(df.head())
         
-        # Análise de sentimentos baseada na nota
         df['sentimento'] = df['nota_satisfacao'].apply(
             lambda nota: 'positivo' if nota >= 4 else ('neutro' if nota == 3 else 'negativo')
         )
@@ -171,7 +167,7 @@ def testar_conexao_mongo():
     """Testa a conexão com o MongoDB"""
     try:
         client = MongoClient("mongodb://mongo:27017/", serverSelectionTimeoutMS=5000)
-        client.server_info()  # Força uma operação no servidor
+        client.server_info()  
         print("🟢 Conexão com MongoDB estabelecida com sucesso")
         return True
     except Exception as e:
